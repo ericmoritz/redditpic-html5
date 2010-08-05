@@ -1,0 +1,11 @@
+# -*- mode: org; fill-column: 78 -*-
+#+STARTUP: content
+#+STARTUP: overview
+
+* DONE Load the next page after the last image on the page
+  CLOSED: [2010-08-05 Thu 22:30]
+* DONE Add a throbber
+  CLOSED: [2010-08-05 Thu 22:30]
+* Add a nicer throbber
+* Bugs
+** The first item on the next page load isn't filling correctly
