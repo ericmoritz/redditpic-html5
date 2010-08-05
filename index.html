@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+<head>
+ <title>Reddit Pics</title>
+ <meta charset="utf-8">
+ <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+ <script>
+ function qs( name )
+ {
+    name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
+    var regexS = "[\\?&]"+name+"=([^&#]*)";
+    var regex = new RegExp( regexS );
+    var results = regex.exec( window.location.href );
+    if( results == null )
+      return "";
+    else
+      return results[1];
+ }
+
+$.fn.vfill = function($parent) {
+    // Fill the items to the size of their parent
+    $(this).each(function(i) {
+        var $item = $(this);
+
+        $item.height($parent.height());
+
+
+
+    });
+ }
+$.fn.hfill = function($parent) {
+    // Fill the items to the size of their parent
+    $(this).each(function(i) {
+        var $item = $(this);
+        $item.width($parent.width());
+    });
+ }
+
+
+
+
+ var last_data;
+ var $current;
+
+ function activate($block) {
+   var $img = $block.find("img")
+   var $title = $block.find(".title");
+   var $nav = $block.find(".nav");
+
+   $current = $block;
+
+   $block.height($(window).height());
+   $img.vfill($block);
+
+   $block.show();
+
+   $block.hfill($img);
+   $title.hfill($img);
+   $nav.find(".button").vfill($block);
+
+ }
+
+ function next() {
+    if(!$current) return;
+
+    var $next = $current.data("next");
+    if($next.length == 0) return;
+
+    $current.hide()
+    activate($next);
+
+    return true
+ }
+
+ function prev() {
+    if(!$current) return;
+
+    var $prev = $current.data("prev");
+    if($prev.length == 0) return false;
+
+    $current.hide()
+    activate($prev);
+ }
+
+
+ function loadData(after) {
+    var reddit = qs("r")
+    var url = "http://www.reddit.com/r/"+ reddit + "/.json?";
+    url += "count=25";
+    if(after) {
+        url += "&after=" + after;
+    }
+    url += "&jsonp=?";    
+    var $stage = $("body");
+
+    $(".template").height($(window).height());
+
+    $.getJSON(url, null, function(data) {
+       last_data = data;
+       $.each(data['data']['children'], function(i) {
+           var item = this;
+           var img_re = /imgur\.com\/(.+?)(l)?\.(jpeg|jpg|png|gif)/i;
+           var d = item["data"];
+           var match = img_re.exec(d["url"]);
+           if(match) {
+              var slug = match[1];
+              var ext = match[3];
+
+              var url = "http:///i.imgur.com/" + slug + "l." + ext
+
+              var $block = $(".template").clone();
+              $block.removeClass("template");
+              $block.addClass("item");
+              $block.attr("id", data["id"]);
+              $block.hide();
+
+              var $img = $block.find("img")
+              var $title = $block.find(".title a");
+
+              $img.attr("src", url);
+
+              $title.html(d["title"]);
+              $title.attr("href", "http://www.reddit.com/" + d["permalink"]);
+              $stage.append($block);
+
+              if(i == 0) { $img.load(function() { activate($block) }); }
+           }
+
+       });
+
+       var $items = $(".item");
+
+       $items.each(function(i) {
+          var $prev = $($items[i-1]);
+          var $next = $($items[i+1]);
+          var $this = $(this);
+          $this.data("prev", $prev);
+          $this.data("next", $next);
+       })
+
+       $items.each(function(i) {
+          var $this = $(this);
+          var $prev = $this.data("prev");
+          var $next = $this.data("next");
+
+          if($next.length == 0) { $this.find(".nav .next").hide(); }
+          if($prev.length == 0) { $this.find(".nav .prev").hide(); }
+
+          $this.find(".nav .prev").click(function() { prev(); });
+          $this.find(".nav .next").click(function() { next(); });
+       });
+
+       activate($($items[0]));
+    });
+
+ }
+
+ function main() {
+       $(window).resize(function(e) {
+            if($current) { activate($current); }
+       });
+
+       $(window).keydown(function(e) {
+             var RIGHT = 39;
+             var LEFT = 37;
+             switch(e.keyCode) {
+                 case RIGHT:
+                    next(); break;
+                 case LEFT:
+                    prev(); break;
+             }
+       })
+
+       loadData();
+}
+
+jQuery(document).ready(function() { main(jQuery); });
+ </script>
+ <style>
+   .template {
+      display: none;
+   }
+
+   body {
+      background-color: black;
+      margin: 0px; padding: 0px;
+      font-family: sans-serif;
+      font-size: 10pt;
+   }
+   .item img {
+      position: absolute;
+      margin: 0px auto;
+      z-index: 1;
+   }
+
+   .item {
+      background-color: black;
+      position: relative;
+      margin: 0px auto;
+   }
+   .item .title {
+      position: absolute;
+      z-index: 2;
+      background-color: black;
+      opacity: 0.7;
+      font-size: 1.1em;
+      bottom: 0px;
+      padding: 10px;
+   }
+
+  .nav {
+    background-color: black;
+    opacity: 0.6;
+    position: relative;
+    border-radius: 5px;
+    margin: 0px auto;
+    z-index: 4;
+    display:none;
+  }
+
+  .nav .button {
+    position: absolute;
+    font-size: 3em;
+    font-weight: bold;
+    color: white;
+    opacity: 0.4;
+    background-color: black;
+    text-shadow: 0px 3px 3px #000;
+  }
+
+  .nav .button:hover {
+    opacity: 0.6;
+    cursor: pointer;
+  }
+  .nav .next {
+    right: 0px;
+  }
+ </style>
+</head>
+<body>
+
+<section id="container">
+<div class="template">
+  <img>
+  <div class="title"><a></a></div>
+  <div class="nav">
+    <div class="button prev"><div>..</div></div>
+    <div class="button next"><div>..</div></div>
+  </div>
+
+</div>
+</section>
+
+</body>
+</html>
