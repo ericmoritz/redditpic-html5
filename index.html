@@ -17,9 +17,22 @@
       return results[1];
  }
 
+$.fn.center = function($parent) {
+    return $(this).each(function(i) {
+        var $target = $(this);
+        var center = [$parent.width()/2, 
+                      $parent.height()/2];
+
+        var left = center[0] - $target.width() / 2;
+        var top = center[1] - $target.height() / 2;
+        $target.css("left", left);
+        $target.css("top", top);
+ });
+}
+
 $.fn.vfill = function($parent) {
     // Fill the items to the size of their parent
-    $(this).each(function(i) {
+    return $(this).each(function(i) {
         var $item = $(this);
 
         $item.height($parent.height());
@@ -30,7 +43,7 @@ $.fn.vfill = function($parent) {
  }
 $.fn.hfill = function($parent) {
     // Fill the items to the size of their parent
-    $(this).each(function(i) {
+    return $(this).each(function(i) {
         var $item = $(this);
         $item.width($parent.width());
     });
@@ -38,25 +51,47 @@ $.fn.hfill = function($parent) {
 
 
 
-
  var last_data;
  var $current;
 
  function activate($block) {
+   // Resize off screen
+   $block.css("left", 1000000);
+   $block.show();
+
    var $img = $block.find("img")
    var $title = $block.find(".title");
    var $nav = $block.find(".nav");
 
    $current = $block;
 
-   $block.height($(window).height());
+   $block.height($(window).height() * 0.98);
    $img.vfill($block);
 
-   $block.show();
+
+   // calculate the image's width based on it's ration
+   if($img.width() == 0) {
+     var ratio = $img[0].naturalWidth / $img[0].naturalHeight
+     $img.width(ratio * $img.height());
+   }
+
 
    $block.hfill($img);
    $title.hfill($img);
    $nav.find(".button").vfill($block);
+
+   $block.hide()
+   // Bring it back
+   $block.css("left", 0);
+   var $visible = $(".item:visible");
+   if($visible.length > 0) {
+     $(".item:visible").fadeOut(function() {
+       $block.fadeIn()
+     });
+   } else { 
+     $block.fadeIn(); 
+   } 
+
 
  }
 
@@ -64,11 +99,12 @@ $.fn.hfill = function($parent) {
     if(!$current) return;
 
     var $next = $current.data("next");
-    if($next.length == 0) return;
+    if($next.length == 0 && last_data['data']['after']) {
+       loadData(last_data['data']['after']);
+       return;
+    }
 
-    $current.hide()
     activate($next);
-
     return true
  }
 
@@ -78,26 +114,30 @@ $.fn.hfill = function($parent) {
     var $prev = $current.data("prev");
     if($prev.length == 0) return false;
 
-    $current.hide()
     activate($prev);
  }
 
 
- function loadData(after) {
+ function loadData(after, callback) {
+    $("#throbber").center($(window)).fadeIn();
+    callback = callback || function() { $("#throbber").fadeOut(); };
+
     var reddit = qs("r") || "pics";
 
     var url = "http://www.reddit.com/r/"+ reddit + "/.json?";
-    url += "count=25";
+    url += "limit=4";
     if(after) {
         url += "&after=" + after;
     }
     url += "&jsonp=?";    
-    var $stage = $("body");
+    var $stage = $("#container");
 
     $(".template").height($(window).height());
 
     $.getJSON(url, null, function(data) {
        last_data = data;
+       var img_count = 0;
+       var stack = []  
        $.each(data['data']['children'], function(i) {
            var item = this;
            var img_re = /imgur\.com\/(.+?)(l)?\.(jpeg|jpg|png|gif)/i;
@@ -107,12 +147,14 @@ $.fn.hfill = function($parent) {
               var slug = match[1];
               var ext = match[3];
 
-              var url = "http:///i.imgur.com/" + slug + "l." + ext
+              var url = "http://i.imgur.com/" + slug + "l." + ext
 
               var $block = $(".template").clone();
+              stack.push($block);
               $block.removeClass("template");
               $block.addClass("item");
               $block.attr("id", data["id"]);
+
               $block.hide();
 
               var $img = $block.find("img")
@@ -123,14 +165,20 @@ $.fn.hfill = function($parent) {
               $title.html(d["title"]);
               $title.attr("href", "http://www.reddit.com/" + d["permalink"]);
               $stage.append($block);
-
-              if(i == 0) { $img.load(function() { activate($block) }); }
+              
+              /*if(img_count == 1) { 
+                  $img.bind("load", function(e) { 
+                      if(this.complete) {
+                        activate($block); 
+                        if(callback) { callback(); }
+                      }
+                  }); 
+              }*/
            }
 
        });
 
        var $items = $(".item");
-
        $items.each(function(i) {
           var $prev = $($items[i-1]);
           var $next = $($items[i+1]);
@@ -139,19 +187,13 @@ $.fn.hfill = function($parent) {
           $this.data("next", $next);
        })
 
-       $items.each(function(i) {
-          var $this = $(this);
-          var $prev = $this.data("prev");
-          var $next = $this.data("next");
-
-          if($next.length == 0) { $this.find(".nav .next").hide(); }
-          if($prev.length == 0) { $this.find(".nav .prev").hide(); }
-
-          $this.find(".nav .prev").click(function() { prev(); });
-          $this.find(".nav .next").click(function() { next(); });
-       });
-
-       activate($($items[0]));
+       
+       if($current) { 
+          next() 
+       } else {
+          activate($($items[0]));
+       }
+       callback();
     });
 
  }
@@ -208,7 +250,9 @@ jQuery(document).ready(function() { main(jQuery); });
       bottom: 0px;
       padding: 10px;
    }
-
+   .item .title a {
+      color: white;
+   }
   .nav {
     background-color: black;
     opacity: 0.6;
@@ -236,11 +280,22 @@ jQuery(document).ready(function() { main(jQuery); });
   .nav .next {
     right: 0px;
   }
+
+   #throbber {
+       z-index: 100;
+       position: absolute;
+       left: 0px;
+       right: 0px;
+       color: white;
+       background-color: black;
+       opacity: 0.6;
+       text-align: center;
+       font-size: 1.2em;
+   }
  </style>
 </head>
 <body>
 
-<section id="container">
 <div class="template">
   <img>
   <div class="title"><a></a></div>
@@ -248,8 +303,11 @@ jQuery(document).ready(function() { main(jQuery); });
     <div class="button prev"><div>..</div></div>
     <div class="button next"><div>..</div></div>
   </div>
-
 </div>
+
+<div id="throbber">Loading...</div>
+
+<section id="container">
 </section>
 
 </body>
