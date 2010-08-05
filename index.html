@@ -84,7 +84,8 @@ $.fn.hfill = function($parent) {
 
 
  function loadData(after) {
-    var reddit = qs("r")
+    var reddit = qs("r") || "pics";
+
     var url = "http://www.reddit.com/r/"+ reddit + "/.json?";
     url += "count=25";
     if(after) {
